@@ -1,12 +1,18 @@
-import { Scanner } from '@yudiel/react-qr-scanner';
-import './App.css';
+import { useState, useEffect } from "react";
+import { Scanner } from "@yudiel/react-qr-scanner";
+import "./App.css";
 
 const App = () => {
+    const [scanResult, setScanResult] = useState(null);
+
     const handleScan = (result) => {
-        if (result) {
+        if (result && result !== scanResult) {
             console.log("Scanned QR Code:", result);
-            // Send result to Flutter web app
+            setScanResult(result); // Save the scanned result
             window.parent.postMessage({ type: "QR_SCAN_RESULT", data: result }, "*");
+
+            // Reset scanner after 1 second (adjust time if needed)
+            setTimeout(() => setScanResult(null), 1000);
         }
     };
 

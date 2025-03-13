@@ -1,1 +1,36 @@
 
+/* Full-screen overlay */
+.scanner-overlay {
+    position: fixed;
+    top: 0;
+    left: 0;
+    width: 100vw;
+    height: 100vh;
+    background: rgba(0, 0, 0, 0.8);
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    z-index: 9999;
+}
+
+/* Scanner box */
+.scanner-box {
+    background: white;
+    padding: 20px;
+    border-radius: 10px;
+    text-align: center;
+}
+
+/* Close Button */
+.close-button {
+    position: absolute;
+    top: 20px;
+    right: 20px;
+    background: white;
+    color: white;
+    font-size: 14px;
+    padding: 10px;
+    border-radius: 50%;
+    cursor: pointer;
+    border: none;
+}

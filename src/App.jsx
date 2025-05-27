@@ -6,28 +6,40 @@ const App = () => {
     const [scanResult, setScanResult] = useState(null);
     const [isScanning, setIsScanning] = useState(true);
     const [cameraAccessible, setCameraAccessible] = useState(false);
+    const [cameraError, setCameraError] = useState(null);
+    const [videoDevices, setVideoDevices] = useState([]);
+    const [selectedDeviceId, setSelectedDeviceId] = useState(null);
 
     useEffect(() => {
-        // Check for camera access before initializing scanner
+        if (window.location.protocol !== "https:" && window.location.hostname !== "localhost") {
+            setCameraAccessible(false);
+            setCameraError("Camera only works over HTTPS or localhost.");
+            return;
+        }
         navigator.mediaDevices.getUserMedia({ video: { facingMode: "environment" } })
             .then((stream) => {
-                console.log("Camera access granted!");
                 setCameraAccessible(true);
                 stream.getTracks().forEach(track => track.stop());
             })
             .catch((error) => {
-                console.error("Camera access denied:", error);
                 setCameraAccessible(false);
+                setCameraError(error.message);
             });
     }, []);
 
+    useEffect(() => {
+        if (!cameraAccessible) return;
+        navigator.mediaDevices.enumerateDevices().then(devices => {
+            const videos = devices.filter(d => d.kind === "videoinput");
+            setVideoDevices(videos);
+            if (videos.length > 0) setSelectedDeviceId(videos[0].deviceId);
+        });
+    }, [cameraAccessible]);
+
     const handleScan = (result) => {
         if (result && result !== scanResult) {
-            console.log("Scanned QR Code:", result);
             setScanResult(result);
             window.parent.postMessage({ type: "QR_SCAN_RESULT", data: result }, "*");
-
-            // Close scanner after scanning
             setTimeout(() => {
                 setScanResult(null);
                 handleClose();
@@ -44,13 +56,35 @@ const App = () => {
         isScanning && (
             <div className="scanner-overlay">
                 <button className="close-button" onClick={handleClose}>❌</button>
-
                 <div className="scanner-box">
                     <h2>Scan QR Code</h2>
                     {cameraAccessible ? (
-                        <Scanner onScan={handleScan} constraints={{ facingMode: "environment" }} />
+                        <>
+                            {videoDevices.length > 1 && (
+                                <select
+                                    value={selectedDeviceId}
+                                    onChange={e => setSelectedDeviceId(e.target.value)}
+                                >
+                                    {videoDevices.map(device => (
+                                        <option key={device.deviceId} value={device.deviceId}>
+                                            {device.label || `Camera ${device.deviceId}`}
+                                        </option>
+                                    ))}
+                                </select>
+                            )}
+                            <Scanner
+                                onScan={handleScan}
+                                constraints={
+                                    selectedDeviceId
+                                        ? { deviceId: { exact: selectedDeviceId } }
+                                        : { facingMode: "environment" }
+                                }
+                            />
+                        </>
                     ) : (
-                        <p>Camera access required. Please allow permissions.</p>
+                        <p>
+                            Camera access required. {cameraError && <span>Error: {cameraError}</span>}
+                        </p>
                     )}
                 </div>
             </div>

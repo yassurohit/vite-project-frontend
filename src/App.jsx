@@ -34,7 +34,7 @@ const App = () => {
                 {/* QR Scanner Container */}
                 <div className="scanner-box">
                     <h2>Scan QR Code</h2>
-                    <Scanner onScan={handleScan} />
+                    <Scanner onScan={handleScan} constraints={{ facingMode: "environment" }} />
                 </div>
             </div>
         )

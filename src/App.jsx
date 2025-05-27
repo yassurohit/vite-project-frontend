@@ -27,14 +27,21 @@ const App = () => {
             });
     }, []);
 
-    useEffect(() => {
-        if (!cameraAccessible) return;
-        navigator.mediaDevices.enumerateDevices().then(devices => {
-            const videos = devices.filter(d => d.kind === "videoinput");
-            setVideoDevices(videos);
-            if (videos.length > 0) setSelectedDeviceId(videos[0].deviceId);
-        });
-    }, [cameraAccessible]);
+  useEffect(() => {
+    navigator.mediaDevices.enumerateDevices().then((devices) => {
+        const videoInputs = devices.filter((d) => d.kind === "videoinput");
+        setVideoDevices(videoInputs);
+
+        if (videoInputs.length > 0 && !selectedDeviceId) {
+            // Try to select back camera by matching label
+            const backCamera = videoInputs.find((device) =>
+                device.label.toLowerCase().includes("back")
+            );
+            setSelectedDeviceId(backCamera?.deviceId || videoInputs[0].deviceId);
+        }
+    });
+}, []);
+
 
     const handleScan = (result) => {
         if (result && result !== scanResult) {
@@ -72,14 +79,15 @@ const App = () => {
                                     ))}
                                 </select>
                             )}
-                            <Scanner
-                                onScan={handleScan}
-                                constraints={
-                                    selectedDeviceId
-                                        ? { deviceId: { exact: selectedDeviceId } }
-                                        : { facingMode: "environment" }
-                                }
-                            />
+                           <Scanner
+    onScan={handleScan}
+    constraints={
+        selectedDeviceId
+            ? { deviceId: { exact: selectedDeviceId } }
+            : { facingMode: { exact: "environment" } } // default to back camera if no ID
+    }
+/>
+
                         </>
                     ) : (
                         <p>

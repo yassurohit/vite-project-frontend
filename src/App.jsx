@@ -8,10 +8,11 @@ const App = () => {
     const [isProcessing, setIsProcessing] = useState(false);
     const [videoDevices, setVideoDevices] = useState([]);
     const [selectedDeviceId, setSelectedDeviceId] = useState("");
-    const [useDeviceId, setUseDeviceId] = useState(false);
+    const [useCustomDevice, setUseCustomDevice] = useState(false);
     const [cameraAccessible, setCameraAccessible] = useState(true);
     const [cameraError, setCameraError] = useState("");
-    const [scannerKey, setScannerKey] = useState(0); // To force remount on fallback
+    const [scannerKey, setScannerKey] = useState(0);
+    const [hasFallbackTried, setHasFallbackTried] = useState(false); // prevent infinite fallback
 
     const handleScan = (result) => {
         if (result && result !== scanResult && !isProcessing) {
@@ -33,13 +34,30 @@ const App = () => {
         setScanResult(null);
     };
 
+    const handleDeviceChange = (e) => {
+        const deviceId = e.target.value;
+        setSelectedDeviceId(deviceId);
+        setUseCustomDevice(!!deviceId);
+        setScannerKey(prev => prev + 1); // remount scanner with new camera
+        setHasFallbackTried(false); // allow fallback again
+    };
+
+    const handleScannerError = (err) => {
+        if (err.name === "OverconstrainedError" && !hasFallbackTried) {
+            console.warn("OverconstrainedError: Falling back to default camera.");
+            setUseCustomDevice(false);
+            setSelectedDeviceId("");
+            setScannerKey(prev => prev + 1);
+            setHasFallbackTried(true); // prevent infinite loop
+        } else if (err.name !== "NotAllowedError") {
+            console.error("Scanner error:", err);
+        }
+    };
+
     useEffect(() => {
         const handleMessage = (event) => {
-            if (event.data.type === "START_SCANNER") {
-                setIsScannerActive(true);
-            } else if (event.data.type === "STOP_SCANNER") {
-                setIsScannerActive(false);
-            }
+            if (event.data.type === "START_SCANNER") setIsScannerActive(true);
+            if (event.data.type === "STOP_SCANNER") setIsScannerActive(false);
         };
         window.addEventListener("message", handleMessage);
         return () => window.removeEventListener("message", handleMessage);
@@ -63,23 +81,6 @@ const App = () => {
                 setCameraError("Camera permission is required to scan QR codes.");
             });
     }, []);
-
-    const handleDeviceChange = (e) => {
-        const deviceId = e.target.value;
-        setSelectedDeviceId(deviceId);
-        setUseDeviceId(!!deviceId);
-        setScannerKey((prev) => prev + 1); // force remount of Scanner
-    };
-
-    const handleScannerError = (err) => {
-        console.error("Scanner error:", err);
-        if (err.name === "OverconstrainedError" || err.name === "NotReadableError") {
-            // fallback to default camera
-            setUseDeviceId(false);
-            setSelectedDeviceId("");
-            setScannerKey((prev) => prev + 1); // force remount with fallback
-        }
-    };
 
     if (!cameraAccessible) {
         return (
@@ -116,7 +117,7 @@ const App = () => {
                     onScan={handleScan}
                     onError={handleScannerError}
                     constraints={
-                        useDeviceId && selectedDeviceId
+                        useCustomDevice && selectedDeviceId
                             ? { deviceId: { exact: selectedDeviceId } }
                             : { facingMode: "environment" }
                     }

@@ -6,9 +6,6 @@ const App = () => {
   const [scanResult, setScanResult] = useState(null);
   const [isScannerActive, setIsScannerActive] = useState(true);
   const [isProcessing, setIsProcessing] = useState(false);
-  const [videoDevices, setVideoDevices] = useState([]);
-  const [selectedDeviceId, setSelectedDeviceId] = useState("");
-  const [useDeviceId, setUseDeviceId] = useState(false); // Only use deviceId after user selects
   const [cameraAccessible, setCameraAccessible] = useState(true);
   const [cameraError, setCameraError] = useState("");
 
@@ -47,18 +44,13 @@ const App = () => {
     return () => window.removeEventListener("message", handleMessage);
   }, []);
 
-  // On mount, check camera access and list video devices
+  // On mount, check camera access
   useEffect(() => {
     navigator.mediaDevices
       .getUserMedia({ video: true })
       .then((stream) => {
         stream.getTracks().forEach((track) => track.stop());
         setCameraAccessible(true);
-        return navigator.mediaDevices.enumerateDevices();
-      })
-      .then((devices) => {
-        const videoInputs = devices.filter((d) => d.kind === "videoinput");
-        setVideoDevices(videoInputs);
       })
       .catch((err) => {
         console.error("Camera access error:", err);
@@ -66,20 +58,6 @@ const App = () => {
         setCameraError("Camera permission is required to scan QR codes.");
       });
   }, []);
-
-  // Handle camera selection from dropdown
-  const handleDeviceChange = (e) => {
-    const deviceId = e.target.value;
-    // Validate deviceId exists in current videoDevices list
-    if (videoDevices.find((d) => d.deviceId === deviceId)) {
-      setSelectedDeviceId(deviceId);
-      setUseDeviceId(!!deviceId);
-    } else {
-      // Fallback to default if invalid deviceId selected
-      setSelectedDeviceId("");
-      setUseDeviceId(false);
-    }
-  };
 
   if (!cameraAccessible) {
     return (
@@ -104,33 +82,12 @@ const App = () => {
         </button>
         <h2>QR Scanner</h2>
 
-        {/* Camera Switcher */}
-        {videoDevices.length > 1 && (
-          <select value={selectedDeviceId} onChange={handleDeviceChange}>
-            <option value="">Default (Back Camera)</option>
-            {videoDevices.map((device) => (
-              <option key={device.deviceId} value={device.deviceId}>
-                {device.label || `Camera ${device.deviceId}`}
-              </option>
-            ))}
-          </select>
-        )}
-
         {/* Scanner */}
         <Scanner
           onScan={handleScan}
-          constraints={
-            useDeviceId && selectedDeviceId
-              ? { deviceId: { exact: selectedDeviceId } }
-              : { facingMode: "environment" }
-          }
+          constraints={{ facingMode: "environment" }}
           onError={(error) => {
             console.error("Scanner error:", error);
-            if (error.name === "OverconstrainedError") {
-              // Fallback to default camera on error
-              setUseDeviceId(false);
-              setSelectedDeviceId("");
-            }
           }}
         />
       </div>

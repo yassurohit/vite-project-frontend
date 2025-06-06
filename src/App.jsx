@@ -4,100 +4,114 @@ import "./App.css";
 
 const App = () => {
     const [scanResult, setScanResult] = useState(null);
-    const [isScanning, setIsScanning] = useState(true);
-    const [cameraAccessible, setCameraAccessible] = useState(false);
-    const [cameraError, setCameraError] = useState(null);
+    const [isScannerActive, setIsScannerActive] = useState(true);
+    const [isProcessing, setIsProcessing] = useState(false);
     const [videoDevices, setVideoDevices] = useState([]);
-    const [selectedDeviceId, setSelectedDeviceId] = useState(null);
-
-    useEffect(() => {
-        if (window.location.protocol !== "https:" && window.location.hostname !== "localhost") {
-            setCameraAccessible(false);
-            setCameraError("Camera only works over HTTPS or localhost.");
-            return;
-        }
-        navigator.mediaDevices.getUserMedia({ video: { facingMode: "environment" } })
-            .then((stream) => {
-                setCameraAccessible(true);
-                stream.getTracks().forEach(track => track.stop());
-            })
-            .catch((error) => {
-                setCameraAccessible(false);
-                setCameraError(error.message);
-            });
-    }, []);
-
-  useEffect(() => {
-    navigator.mediaDevices.enumerateDevices().then((devices) => {
-        const videoInputs = devices.filter((d) => d.kind === "videoinput");
-        setVideoDevices(videoInputs);
-
-        if (videoInputs.length > 0 && !selectedDeviceId) {
-            // Try to select back camera by matching label
-            const backCamera = videoInputs.find((device) =>
-                device.label.toLowerCase().includes("back")
-            );
-            setSelectedDeviceId(backCamera?.deviceId || videoInputs[0].deviceId);
-        }
-    });
-}, []);
-
+    const [selectedDeviceId, setSelectedDeviceId] = useState("");
+    const [useDeviceId, setUseDeviceId] = useState(false); // flag to switch mode only after user selects
+    const [cameraAccessible, setCameraAccessible] = useState(true);
+    const [cameraError, setCameraError] = useState("");
 
     const handleScan = (result) => {
-        if (result && result !== scanResult) {
+        if (result && result !== scanResult && !isProcessing) {
+            setIsProcessing(true);
             setScanResult(result);
             window.parent.postMessage({ type: "QR_SCAN_RESULT", data: result }, "*");
+            setIsScannerActive(false);
             setTimeout(() => {
-                setScanResult(null);
                 handleClose();
+                setIsProcessing(false);
             }, 1000);
         }
     };
 
     const handleClose = () => {
-        setIsScanning(false);
+        setIsProcessing(false);
         window.parent.postMessage({ type: "CLOSE_SCANNER" }, "*");
+        setIsScannerActive(false);
+        setScanResult(null);
     };
 
-    return (
-        isScanning && (
-            <div className="scanner-overlay">
-                <button className="close-button" onClick={handleClose}>❌</button>
-                <div className="scanner-box">
-                    <h2>Scan QR Code</h2>
-                    {cameraAccessible ? (
-                        <>
-                            {videoDevices.length > 1 && (
-                                <select
-                                    value={selectedDeviceId}
-                                    onChange={e => setSelectedDeviceId(e.target.value)}
-                                >
-                                    {videoDevices.map(device => (
-                                        <option key={device.deviceId} value={device.deviceId}>
-                                            {device.label || `Camera ${device.deviceId}`}
-                                        </option>
-                                    ))}
-                                </select>
-                            )}
-                           <Scanner
-    onScan={handleScan}
-    constraints={
-        selectedDeviceId
-            ? { deviceId: { exact: selectedDeviceId } }
-            : { facingMode: { exact: "environment" } } // default to back camera if no ID
-    }
-/>
+    useEffect(() => {
+        const handleMessage = (event) => {
+            if (event.data.type === "START_SCANNER") {
+                setIsScannerActive(true);
+            } else if (event.data.type === "STOP_SCANNER") {
+                setIsScannerActive(false);
+            }
+        };
+        window.addEventListener("message", handleMessage);
+        return () => window.removeEventListener("message", handleMessage);
+    }, []);
 
-                        </>
-                    ) : (
-                        <p>
-                            Camera access required. {cameraError && <span>Error: {cameraError}</span>}
-                        </p>
-                    )}
+    useEffect(() => {
+        navigator.mediaDevices
+            .getUserMedia({ video: true })
+            .then((stream) => {
+                stream.getTracks().forEach((track) => track.stop());
+                setCameraAccessible(true);
+                return navigator.mediaDevices.enumerateDevices();
+            })
+            .then((devices) => {
+                const videoInputs = devices.filter((d) => d.kind === "videoinput");
+                setVideoDevices(videoInputs);
+            })
+            .catch((err) => {
+                console.error("Camera access error:", err);
+                setCameraAccessible(false);
+                setCameraError("Camera permission is required to scan QR codes.");
+            });
+    }, []);
+
+    const handleDeviceChange = (e) => {
+        const deviceId = e.target.value;
+        setSelectedDeviceId(deviceId);
+        setUseDeviceId(!!deviceId); // enable deviceId constraints only if selected
+    };
+
+    if (!cameraAccessible) {
+        return (
+            <div className="scanner-overlay">
+                <div className="scanner-box">
+                    <button className="close-button" onClick={handleClose}><span>❌</span></button>
+                    <h2>QR Scanner</h2>
+                    <p style={{ color: "red" }}>{cameraError}</p>
+                    <p>Please allow camera access and refresh the page.</p>
                 </div>
             </div>
-        )
-    );
+        );
+    }
+
+    return isScannerActive ? (
+        <div className="scanner-overlay">
+            <div className="scanner-box">
+                <button className="close-button" onClick={handleClose}><span>❌</span></button>
+                <h2>QR Scanner</h2>
+
+                {/* Camera Switcher */}
+                {videoDevices.length > 1 && (
+                    <select value={selectedDeviceId} onChange={handleDeviceChange}>
+                        <option value="">Default (Back Camera)</option>
+                        {videoDevices.map((device) => (
+                            <option key={device.deviceId} value={device.deviceId}>
+                                {device.label || `Camera ${device.deviceId}`}
+                            </option>
+                        ))}
+                    </select>
+                )}
+
+                {/* Scanner */}
+                <Scanner
+                    onScan={handleScan}
+                    constraints={
+                        useDeviceId && selectedDeviceId
+                            ? { deviceId: { exact: selectedDeviceId } }
+                            : { facingMode: "environment" }
+                    }
+                />
+            </div>
+        </div>
+    ) : null;
 };
 
 export default App;

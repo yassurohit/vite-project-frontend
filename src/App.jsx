@@ -8,11 +8,9 @@ const App = () => {
     const [isProcessing, setIsProcessing] = useState(false);
     const [videoDevices, setVideoDevices] = useState([]);
     const [selectedDeviceId, setSelectedDeviceId] = useState("");
-    const [useCustomDevice, setUseCustomDevice] = useState(false);
     const [cameraAccessible, setCameraAccessible] = useState(true);
     const [cameraError, setCameraError] = useState("");
     const [scannerKey, setScannerKey] = useState(0);
-    const [hasFallbackTried, setHasFallbackTried] = useState(false); // prevent infinite fallback
 
     const handleScan = (result) => {
         if (result && result !== scanResult && !isProcessing) {
@@ -35,21 +33,14 @@ const App = () => {
     };
 
     const handleDeviceChange = (e) => {
-        const deviceId = e.target.value;
-        setSelectedDeviceId(deviceId);
-        setUseCustomDevice(!!deviceId);
+        setSelectedDeviceId(e.target.value);
         setScannerKey(prev => prev + 1); // remount scanner with new camera
-        setHasFallbackTried(false); // allow fallback again
     };
 
     const handleScannerError = (err) => {
-        if (err.name === "OverconstrainedError" && !hasFallbackTried) {
-            console.warn("OverconstrainedError: Falling back to default camera.");
-            setUseCustomDevice(false);
-            setSelectedDeviceId("");
-            setScannerKey(prev => prev + 1);
-            setHasFallbackTried(true); // prevent infinite loop
-        } else if (err.name !== "NotAllowedError") {
+        if (err.name === "OverconstrainedError") {
+            console.warn("Scanner error: OverconstrainedError - likely deviceId is too strict.");
+        } else {
             console.error("Scanner error:", err);
         }
     };
@@ -67,13 +58,13 @@ const App = () => {
         navigator.mediaDevices
             .getUserMedia({ video: true })
             .then((stream) => {
-                stream.getTracks().forEach((track) => track.stop());
+                stream.getTracks().forEach(track => track.stop());
                 setCameraAccessible(true);
                 return navigator.mediaDevices.enumerateDevices();
             })
             .then((devices) => {
-                const videoInputs = devices.filter((d) => d.kind === "videoinput");
-                setVideoDevices(videoInputs);
+                const cams = devices.filter(d => d.kind === "videoinput");
+                setVideoDevices(cams);
             })
             .catch((err) => {
                 console.error("Camera access error:", err);
@@ -103,7 +94,7 @@ const App = () => {
 
                 {videoDevices.length > 1 && (
                     <select value={selectedDeviceId} onChange={handleDeviceChange}>
-                        <option value="">Default (Back Camera)</option>
+                        <option value="">Default (Recommended)</option>
                         {videoDevices.map((device) => (
                             <option key={device.deviceId} value={device.deviceId}>
                                 {device.label || `Camera ${device.deviceId}`}
@@ -117,9 +108,9 @@ const App = () => {
                     onScan={handleScan}
                     onError={handleScannerError}
                     constraints={
-                        useCustomDevice && selectedDeviceId
-                            ? { deviceId: { exact: selectedDeviceId } }
-                            : { facingMode: "environment" }
+                        selectedDeviceId
+                            ? { video: { deviceId: { ideal: selectedDeviceId } } }
+                            : { video: { facingMode: "environment" } }
                     }
                 />
             </div>

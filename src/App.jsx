@@ -8,9 +8,10 @@ const App = () => {
     const [isProcessing, setIsProcessing] = useState(false);
     const [videoDevices, setVideoDevices] = useState([]);
     const [selectedDeviceId, setSelectedDeviceId] = useState("");
-    const [useDeviceId, setUseDeviceId] = useState(false); // flag to switch mode only after user selects
+    const [useDeviceId, setUseDeviceId] = useState(false);
     const [cameraAccessible, setCameraAccessible] = useState(true);
     const [cameraError, setCameraError] = useState("");
+    const [scannerKey, setScannerKey] = useState(0); // To force remount on fallback
 
     const handleScan = (result) => {
         if (result && result !== scanResult && !isProcessing) {
@@ -66,7 +67,18 @@ const App = () => {
     const handleDeviceChange = (e) => {
         const deviceId = e.target.value;
         setSelectedDeviceId(deviceId);
-        setUseDeviceId(!!deviceId); // enable deviceId constraints only if selected
+        setUseDeviceId(!!deviceId);
+        setScannerKey((prev) => prev + 1); // force remount of Scanner
+    };
+
+    const handleScannerError = (err) => {
+        console.error("Scanner error:", err);
+        if (err.name === "OverconstrainedError" || err.name === "NotReadableError") {
+            // fallback to default camera
+            setUseDeviceId(false);
+            setSelectedDeviceId("");
+            setScannerKey((prev) => prev + 1); // force remount with fallback
+        }
     };
 
     if (!cameraAccessible) {
@@ -88,7 +100,6 @@ const App = () => {
                 <button className="close-button" onClick={handleClose}><span>❌</span></button>
                 <h2>QR Scanner</h2>
 
-                {/* Camera Switcher */}
                 {videoDevices.length > 1 && (
                     <select value={selectedDeviceId} onChange={handleDeviceChange}>
                         <option value="">Default (Back Camera)</option>
@@ -100,9 +111,10 @@ const App = () => {
                     </select>
                 )}
 
-                {/* Scanner */}
                 <Scanner
+                    key={scannerKey}
                     onScan={handleScan}
+                    onError={handleScannerError}
                     constraints={
                         useDeviceId && selectedDeviceId
                             ? { deviceId: { exact: selectedDeviceId } }

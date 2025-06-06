@@ -8,17 +8,17 @@ const App = () => {
   const [isProcessing, setIsProcessing] = useState(false);
   const [videoDevices, setVideoDevices] = useState([]);
   const [selectedDeviceId, setSelectedDeviceId] = useState("");
-  const [useDeviceId, setUseDeviceId] = useState(false); // only switch constraints after user selects camera
+  const [useDeviceId, setUseDeviceId] = useState(false); // Only use deviceId after user selects
   const [cameraAccessible, setCameraAccessible] = useState(true);
   const [cameraError, setCameraError] = useState("");
 
+  // Handle scan result
   const handleScan = (result) => {
     if (result && result !== scanResult && !isProcessing) {
       setIsProcessing(true);
       setScanResult(result);
       window.parent.postMessage({ type: "QR_SCAN_RESULT", data: result }, "*");
       setIsScannerActive(false);
-
       setTimeout(() => {
         handleClose();
         setIsProcessing(false);
@@ -26,6 +26,7 @@ const App = () => {
     }
   };
 
+  // Close scanner and notify parent iframe
   const handleClose = () => {
     setIsProcessing(false);
     window.parent.postMessage({ type: "CLOSE_SCANNER" }, "*");
@@ -33,12 +34,12 @@ const App = () => {
     setScanResult(null);
   };
 
-  // Listen for messages from parent window to start or stop scanner externally
+  // Listen for messages from parent iframe to open/close scanner
   useEffect(() => {
     const handleMessage = (event) => {
-      if (event.data?.type === "START_SCANNER") {
+      if (event.data.type === "START_SCANNER") {
         setIsScannerActive(true);
-      } else if (event.data?.type === "STOP_SCANNER") {
+      } else if (event.data.type === "STOP_SCANNER") {
         setIsScannerActive(false);
       }
     };
@@ -46,7 +47,7 @@ const App = () => {
     return () => window.removeEventListener("message", handleMessage);
   }, []);
 
-  // On mount, check camera permission and enumerate devices
+  // On mount, check camera access and list video devices
   useEffect(() => {
     navigator.mediaDevices
       .getUserMedia({ video: true })
@@ -66,10 +67,18 @@ const App = () => {
       });
   }, []);
 
+  // Handle camera selection from dropdown
   const handleDeviceChange = (e) => {
     const deviceId = e.target.value;
-    setSelectedDeviceId(deviceId);
-    setUseDeviceId(!!deviceId); // only apply constraints if user selected a camera
+    // Validate deviceId exists in current videoDevices list
+    if (videoDevices.find((d) => d.deviceId === deviceId)) {
+      setSelectedDeviceId(deviceId);
+      setUseDeviceId(!!deviceId);
+    } else {
+      // Fallback to default if invalid deviceId selected
+      setSelectedDeviceId("");
+      setUseDeviceId(false);
+    }
   };
 
   if (!cameraAccessible) {
@@ -93,10 +102,9 @@ const App = () => {
         <button className="close-button" onClick={handleClose}>
           <span>❌</span>
         </button>
-
         <h2>QR Scanner</h2>
 
-        {/* Camera selection dropdown */}
+        {/* Camera Switcher */}
         {videoDevices.length > 1 && (
           <select value={selectedDeviceId} onChange={handleDeviceChange}>
             <option value="">Default (Back Camera)</option>
@@ -116,6 +124,14 @@ const App = () => {
               ? { deviceId: { exact: selectedDeviceId } }
               : { facingMode: "environment" }
           }
+          onError={(error) => {
+            console.error("Scanner error:", error);
+            if (error.name === "OverconstrainedError") {
+              // Fallback to default camera on error
+              setUseDeviceId(false);
+              setSelectedDeviceId("");
+            }
+          }}
         />
       </div>
     </div>

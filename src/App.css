@@ -13,12 +13,13 @@
     z-index: 9999;
 }
 
-/* Scanner box */
 .scanner-box {
-    background: white;
-    padding: 20px;
-    border-radius: 10px;
+   
     text-align: center;
+    width: 90%; /* Responsive width */
+    max-width: 400px; /* Limits width */
+    max-height: 80vh; /* Prevents overflowing */
+    overflow: hidden; /* Ensures no scrollbars */
 }
 
 /* Close Button */
@@ -30,7 +31,7 @@
     color: white;
     font-size: 14px;
     padding: 10px;
-    border-radius: 50%;
+    border-radius: 30%;
     cursor: pointer;
     border: none;
 }

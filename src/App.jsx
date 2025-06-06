@@ -85,7 +85,7 @@ const App = () => {
         {/* Scanner */}
         <Scanner
           onScan={handleScan}
-          constraints={{ facingMode: "environment" }}
+          constraints={{ video: true }}
           onError={(error) => {
             console.error("Scanner error:", error);
           }}
